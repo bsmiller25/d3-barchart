@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>D3: Bar Chart</title>
+		<script src="http://d3js.org/d3.v3.min.js"></script>
+	<!-- 	<script type="text/javascript" src="../d3/d3.v3.js"></script> -->
+		<style type="text/css">
+	
+                       /* CSS stuff here */
+
+                    	.axis path,
+			.axis line {
+				fill: none;
+				stroke: black;
+				shape-rendering: crispEdges;
+			}
+			
+			.axis text {
+				font-family: sans-serif;
+				font-size: 11px;
+			}
+
+                        svg .x path,
+                        svg .x line
+                        {
+                                stroke: black;
+                        }
+
+			svg .legend text {
+                                font-family: sans-serif;
+				font-size: 12px;
+			} 
+
+                        .slider {width: 500px; margin: 0; padding: 0; background: #fff;}
+                        
+                  
+
+		</style>
+
+	</head>
+	<body>
+		
+
+
+           <script type="text/javascript">
+
+	     //Width and height
+		var w = 1500;
+		var h = 600;
+                var padding = 150;
+			
+		var datasetfull;
+                var dataset;
+                
+	     d3.csv("data.csv", function(data){
+
+                datasetfull = data;
+                dataset = data;
+
+                   var startchart = dataset.length-31;
+                   var endchart = dataset.length-1;
+                   var active_gs = 1; 
+	           var layers;
+                   var colnames;
+                   var numcolsfull;
+                   var colnamesfull;
+                   var activebar;
+
+                   readDate = d3.time.format("%Y-%m-%d").parse
+                   readDate2 = d3.time.format("%m/%d/%y").parse
+                   cleanDate = d3.time.format("%m/%d/%y")   
+
+                  dataset.forEach(function(d){
+                    d.date = cleanDate(readDate(d.date));}
+                  );         
+                                                  
+
+
+
+                // set up the page
+
+                   var instuctions = d3.select("body")
+                      .append("div")
+                      .attr("id","instructions")
+                      .attr("align","center")
+                      .attr("height",h)
+                      .append("p")
+                         .text("Adjust the period of time with the sliders, change between group and stack layouts with the radio buttons, and toggle the types displayed by clicking on the legend color of each type.")
+
+                   var control = d3.select("body")
+                      .append("div")
+                      .attr("id", "control")
+                      .attr("align","center")
+                      .attr("height",h);
+
+	           var titlespace = d3.select("body")
+                      .append("div")
+                      .attr("id", "titlespace")
+                      .attr("align","center")
+                      .attr("height", h);
+
+                   var chartdiv = d3.select("body")
+                        .append("div")
+                        .attr("id","chartdiv")
+                        .attr("align","center");
+
+                   var chartsvg = d3.select("#chartdiv").append("svg")
+                        .attr("id","chartsvg") 
+                        .attr("height",h)
+                        .attr("width",w);                      
+
+                    
+                   function colorScale(x){
+                      var colors = ["red","blue","green","purple","orange"]
+                      return colors[colnames.indexOf(x)];
+                   };
+ 
+
+                // Get Column Names From the CSV (excluding first column of dates)
+                   numcolsfull = d3.entries(dataset[0]).length
+	           colnamesfull = [];
+                   for(var i = 1; i < numcolsfull; i++){
+                       colnamesfull.push(d3.entries(dataset[0])[i].key)
+                   };
+
+                   for(var i = 0; i < colnamesfull.length; i++){
+                       dataset.forEach(function(d){
+                          d[colnamesfull[i]] = +d[colnamesfull[i]]
+                       })
+                   };   
+                   
+                   activebar = colnamesfull;
+                   
+              
+              
+                 function rebuild(){
+
+                       controlpanel()
+                       charttitle()
+                       subset(startchart, endchart)
+                       makechart()
+                  }
+
+
+                
+
+                  rebuild()
+                  makelegend()
+           
+                 // set up the control div
+
+                 function controlpanel(){
+
+                   d3.select("#datesliders")
+                      .remove()
+                   d3.select("#groupstackform")
+                      .remove()
+
+                      var control = d3.select("#control")
+
+                      var datesliders = control.append("g")
+                         .attr("id","datesliders");
+
+                         var datestart = datesliders.append("div")
+                            .attr("id","datestart")
+                            .text("Start: ")
+                            .append("input")
+                               .attr("name", "datestartslider")
+                               .attr("class","slider")
+                               .attr("type","range")
+                               .attr("min",0)
+                               .attr("max",datasetfull.length-1)
+                               .attr("value", startchart)
+                               .on("input", function(){
+                                     startchart = this.value ;
+                                     charttitle()
+                                })
+                               .on("change", function() {
+                                   startchart = this.value ;
+                                   rebuild()
+                                });
+
+
+                         d3.select("#datestart")
+                            .append("output") 
+                               .attr("for","datestartslider")
+                               .attr("onforminput","value = datestartslider.valueAsNumber;");
+                  
+
+
+                         var dateend = datesliders.append("div")
+                            .attr("id","dateend")
+                            .text("End: ")
+                            .append("input")
+                               .attr("class","slider")
+                               .attr("type","range")
+                               .attr("min",0)
+                               .attr("max",datasetfull.length-1)
+                               .attr("value", endchart)
+                               .on("input", function(){
+                                     endchart = this.value ;
+                                     charttitle()
+                                })
+                               .on("change", function() {
+                                   endchart = this.value; 
+                                   rebuild()
+                                });
+
+
+
+                     var groupstackoptions = ["Grouped","Stacked"];
+
+                     var groupstackform = control.append("form")
+                        .attr("id","groupstackform");
+
+                         var groupstackspan = groupstackform.selectAll("span")
+                            .data(groupstackoptions)
+                            .enter()
+                               .append("span");
+
+
+                            groupstackspan.append("input")
+                               .attr({type: "radio",
+                                  class: "shape",
+                                  name: "mode",
+                                  value: function(d, i){ return i;},
+                                  id: function(d){return d;} 
+                                   })
+
+                               .property("checked", function(d,i){return (i === active_gs);});
+
+                            groupstackspan.append("label")
+                               .text(function(d){return d;});
+
+                       
+
+                       d3.select("#Grouped")
+                         .on("change", function(){
+                                          subset(startchart, endchart)
+                                          makechart()});
+
+                       d3.select("#Stacked")
+                         .on("change", function(){
+                                          subset(startchart, endchart)
+                                          makechart()});
+                     
+ 
+        
+                    } // end control div
+ 
+                
+                // display chart title
+
+                function charttitle(){
+
+                   d3.select("#title")
+                         .remove()
+
+                   var title = d3.select("#titlespace").append("h2")
+                      .attr("id","title")
+                      .text("Bars from:  " + datasetfull[startchart].date + "  -  " + datasetfull[endchart].date);
+
+                } // end chart title
+
+
+
+           // Legend                      
+                  
+             function makelegend(){
+ 
+                    var legend = d3.select("#chartsvg").append("g")
+                       .attr("id","legend")
+                       .selectAll(".legend")
+                       .data(colnamesfull)
+                       .enter()
+                       .append("g")
+                       .attr("class","legend")
+                       .attr("transform", function(d,i){return "translate(-50," + (50 + i * 20) + ")";})
+
+                    legend.append("rect")
+	               .attr("x", w+35)
+                       .attr("width", 18)
+                       .attr("height", 18)
+                       .attr("id",function(d,i){return "block"+i;})
+                       .style("fill", function(d,i){return colorScale(colnamesfull[i]);})
+                       .property("status","active")
+                       .on("click",function(d,i){
+                                      if(this.status == "active"){
+                                         d3.select("#block"+i).style("fill","white")
+                                           .property("status","inactive")
+                                         getActiveBars()
+                                         rebuild()
+                                         }
+                                       else if(this.status == "inactive"){
+                                         d3.select("#block"+i).style("fill",colorScale(colnamesfull[i]))
+                                           .property("status","active")
+                                         getActiveBars()
+                                         rebuild()
+                                         }
+      
+                                    }
+
+                       );
+
+                         function getActiveBars(){
+                             activebar = [];
+                             for( var i = 0; i < colnames.length; i++){
+                                if(d3.select("#block"+i).property("status") == "active"){
+                                   activebar.push(colnames[i]);
+                                 }
+                             }
+                         };
+                   
+
+                    legend.append("text")
+                       .attr("x", w+30)
+                       .attr("y", 9)
+                       .attr("dy",".35em")
+                       .style("text-anchor", "end")
+                       .text(function(d,i,j) { return d; });        
+
+
+                 };
+
+
+
+
+          //function for subsetting
+
+          function subset(startindex, endindex){
+
+                    var startdate = readDate2(datasetfull[startindex].date);
+                    var enddate = readDate2(datasetfull[endindex].date);
+
+                    if(startdate > enddate){
+                       alert("Start cannot be after End");
+                       startchart = datasetfull.length-31;
+                       endchart = datasetfull.length-1;
+                      
+                       rebuild();
+                    }
+
+                    var sub = [];
+
+                     for(var i = 0; i < data.length; i++){
+                        if(readDate2(data[i].date) >= startdate & readDate2(data[i].date) <= enddate){
+	                   sub.push(d3.values(data)[i]);
+	                }
+	                else
+	                {
+	                }
+	                }
+
+                        dataset = sub;
+
+                // Get Column Names From the CSV (excluding first column of dates)
+                   numcols = d3.entries(dataset[0]).length
+	           colnames = [];
+                   for(var i = 1; i < numcols; i++){
+                       colnames.push(d3.entries(dataset[0])[i].key)
+                   };
+
+                   for(var i = 0; i < colnames.length; i++){
+                       dataset.forEach(function(d){
+                          d[colnames[i]] = +d[colnames[i]]
+                       })
+                   };   
+
+                // Clean the data
+              
+
+                  layers = d3.layout.stack()(activebar.map(function(c) {
+                       return dataset.map(function(d) {
+                          return {x: d.date, y: +d[c]};
+                       });
+                   }));
+
+          // Define Scales
+
+                   xScale = d3.scale.ordinal()
+                     .domain(dataset.map(function(d){return d.date;}))
+                     .rangeRoundBands([padding, w - padding],.05);    
+
+                   yMaxStack = d3.max(layers, function(layer) {return d3.max(layer, function(d) { return d.y0 + d.y; });});
+                   yMaxGroup = d3.max(layers, function(layer) {return d3.max(layer, function(d) { return d.y; });});
+
+
+
+                   // find group or stack from radio button
+ 
+                   var radios = document.getElementsByName('mode');
+                   for (var i = 0, length = radios.length; i < length; i++) {
+                       if (radios[i].checked) {
+                          active_gs = +radios[i].value;
+                          break;
+                         }
+                   }
+
+                   // set y scale accordingly
+                   if(active_gs == 1)
+                       yScale = d3.scale.linear()
+		         .domain([0, yMaxStack])
+                         .range([h-padding, padding])
+                         .nice();
+                   if(active_gs == 0)
+                       yScale = d3.scale.linear()
+		         .domain([0, yMaxGroup])
+                         .range([h-padding, padding])
+                         .nice();
+
+           
+                  }  // end subset
+
+
+
+                // function for making the chart
+
+
+
+
+                function makechart(){
+                  
+                    d3.select("#chart")
+                          .remove()
+
+
+                 // Define Axes
+               
+                    // find the first observation of each month for
+                    // the x axis as default
+
+                   
+                   readDate = d3.time.format("%m/%d/%y").parse
+ 
+                    var xdates = [];
+                    for(var i = 1; i < dataset.length; i++){
+                        if(readDate(dataset[i].date).getMonth() != readDate(dataset[i-1].date).getMonth()){
+                           xdates.push(dataset[i].date);
+                        }
+                    };
+
+                    // shorter windows, label more
+
+                    if(dataset.length <= 20 ){
+                       xdates = [];
+                       for(var i = 0; i < dataset.length; i++){
+                          xdates.push(dataset[i].date);
+                       }
+                    }
+
+                    if(dataset.length > 20 & dataset.length <= 35){
+                      xdates = [];
+                      for(var i = 0; i < dataset.length; i = i + 2){
+                         xdates.push(dataset[i].date);
+                      }
+                    }
+
+
+
+                    var xAxis = d3.svg.axis()
+                        .scale(xScale)
+                        .orient("bottom")
+                        .tickValues(xdates);                
+
+                    var yAxis = d3.svg.axis()
+                        .scale(yScale)
+                        .orient("left")
+                        .ticks(5);
+     
+	     var chart = d3.select("#chartsvg").append("g")
+                   .attr("id","chart")
+
+                  
+                      
+                 // Set up layer
+
+	            var layer = chart.selectAll(".layer")
+                       .data(layers)
+                       .enter()
+                          .append("g")
+                             .attr("class","layer")
+                             .attr("id",function(d,i){return colnamesfull[i]+"layer";})
+                             .style("fill", function(d,i) { return colorScale(activebar[i]);});
+
+                 // Create Bars
+       
+                    var bars = layer.selectAll("bars")
+                       .data(function(d){return d;})
+                       .enter()
+                          .append("rect")
+                             .attr("x",function(d){return xScale(d.x);})
+                             .attr("y",h)
+                             .attr("width", xScale.rangeBand())
+                             .attr("height", 0);
+
+                 // Bars transition 
+                    bars.transition()
+                       .delay(function(d,i){ return i * 5; })
+                       .attr("y", function(d) { return yScale(d.y0 + d.y); })
+                       .attr("height", function(d){ return yScale(d.y0) - yScale(d.y + d.y0); });
+
+                 // Draw axes
+
+                    // x axis 
+                    chart.append("g")
+                       .attr("class", "axis x")
+                       .attr("transform","translate(0, " + (h - padding) + ")")
+                       .call(xAxis)
+                           .selectAll("text")
+                              .style("text-anchor", "middle")
+                              .attr("dy", "20px");
+
+                    // y axis
+	            chart.append("g")
+                       .attr("id","yaxis")
+                       .attr("class", "axis")
+	               .attr("transform","translate(" + padding + ",0)")
+                       .call(yAxis);
+                        
+                     d3.select("#yaxis").append("text")
+                       .attr("y", padding - 20)
+                       .attr("x", -20)
+                       .attr("text-anchor", "end")
+                       .text("Count");
+
+                     if(active_gs == 0){
+                        transition2group()
+                       };
+                     if(active_gs == 1){
+                        transition2stack()
+                       };
+
+
+                    } //end function for making chart
+
+
+
+
+ 
+                  // transitions 
+                    function transition2group(){
+                        bars = d3.select("#chart").selectAll(".layer").selectAll("rect")
+                          .transition()
+                               .attr("x",function(d,i,j){return xScale(d.x) + xScale.rangeBand() / activebar.length * j;}) 
+                               .attr("width", xScale.rangeBand() / activebar.length)                                
+                               .attr("y", function(d) { return yScale(d.y); })
+                                .attr("height", function(d){ return h - padding - yScale(d.y); });
+                        
+                    }
+                    function transition2stack(){
+                        bars = d3.select("#chart").selectAll(".layer").selectAll("rect")
+                          .transition()
+                             .attr("x",function(d){return xScale(d.x);})
+                             .attr("width", xScale.rangeBand())
+                             .attr("y", function(d) { return yScale(d.y0 + d.y); })
+                             .attr("height", function(d){ return yScale(d.y0) - yScale(d.y + d.y0); });
+                    }
+                    
+           
+
+         
+        })
+        </script>
+    </body>
+</html>
